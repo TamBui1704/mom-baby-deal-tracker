@@ -1,0 +1,52 @@
+version: '3.8'
+services:
+  # Data Warehouse
+  warehouse-db:
+    image: postgres:15
+    container_name: warehouse_postgres
+    environment:
+      POSTGRES_USER: dw_admin
+      POSTGRES_PASSWORD: password123
+      POSTGRES_DB: mom_baby_dw
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Message Broker
+  message-broker:
+    image: bitnami/kafka:latest
+    container_name: kafka_broker
+    environment:
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - KAFKA_KRAFT_CLUSTER_ID=abc-123-deal-tracker
+    ports:
+      - "9092:9092"
+
+  # Orchestrator
+  orchestrator:
+    image: apache/airflow:2.7.1
+    container_name: airflow_orchestrator
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://dw_admin:password123@warehouse-db/mom_baby_dw
+    ports:
+      - "8080:8080"
+    command: standalone
+    depends_on:
+      - warehouse-db
+
+  # BI Tool
+  bi-visualization:
+    image: metabase/metabase:latest
+    container_name: metabase_analytics
+    ports:
+      - "3000:3000"
+    depends_on:
+      - warehouse-db
+
+volumes:
+  postgres_data:
