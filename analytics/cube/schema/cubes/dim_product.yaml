@@ -1,0 +1,40 @@
+cubes:
+  - name: dim_product
+    sql_table: dwh.dim_product
+    
+    # === 1. Quan hệ với Fact (Relationships) ===
+    # Thông thường SSAS/Cube hay định nghĩa Join từ Fact -> Dim
+    # Nên ở file Dim, ta chủ yếu định nghĩa các chi tiết hiển thị.
+    joins:
+      - name: fact_price_snapshots
+        sql: "{CUBE}.product_key = {fact_price_snapshots}.product_key"
+        relationship: one_to_many
+
+    dimensions:
+      - name: product_key
+        sql: product_key
+        type: string
+        primary_key: true
+        shown: false # Ẩn key kỹ thuật
+
+      - name: product_name
+        sql: product_name
+        type: string
+        title: "Tên sản phẩm"
+        description: "Tên đầy đủ của sản phẩm hiển thị trên sàn"
+
+      - name: brand
+        sql: brand
+        type: string
+        title: "Thương hiệu"
+        description: "Thương hiệu của sản phẩm (VD: Huggies, Meiji)"
+
+      - name: unit
+        sql: unit
+        type: string
+        title: "Đơn vị"
+        
+      - name: product_link
+        sql: product_link
+        type: string
+        title: "Link sản phẩm"

@@ -1,0 +1,39 @@
+
+name: 'mom_baby_tracker'
+version: '1.0.0'
+config-version: 2
+
+# This setting configures which "profile" dbt uses for this project.
+profile: 'mom_baby_tracker'
+
+# These configurations control where dbt looks for different types of files.
+# The `model-paths` etc. can be a list of strings.
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"  # directory which will store compiled SQL files
+clean-targets:         # directories to be removed by `dbt clean`
+  - "target"
+  - "dbt_packages"
+
+# Tự động dọn dẹp __dbt_backup bị kẹt lại trước mỗi lần dbt run
+on-run-start:
+  - "{{ cleanup_dbt_backups() }}"
+
+# Configuring models
+# All models in the `models` directory will be built as tables by default.
+models:
+  mom_baby_tracker:
+    # Config for all models in the project
+    +materialized: table
+    +pre-hook: "{{ check_table_collision() }}"
+    staging:
+      +schema: staging
+      +materialized: view  # Staging models are often views
+    marts:
+      +schema: dwh
+      +materialized: table

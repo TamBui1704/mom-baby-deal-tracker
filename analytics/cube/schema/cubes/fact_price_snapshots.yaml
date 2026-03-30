@@ -1,0 +1,84 @@
+cubes:
+  - name: fact_price_snapshots
+    sql_table: dwh.fact_price_snapshots
+    
+    # === 1. Mối quan hệ (Relationships) giống SSAS ===
+    joins:
+      - name: dim_product
+        sql: "{CUBE}.product_key = {dim_product}.product_key"
+        relationship: many_to_one
+
+      - name: dim_date
+        sql: "{CUBE}.date_key = {dim_date}.date_key"
+        relationship: many_to_one
+
+      - name: dim_time
+        sql: "{CUBE}.time_key = {dim_time}.time_key"
+        relationship: many_to_one
+
+
+    # === 2. Các số đo (Measures - tương đương DAX) ===
+    measures:
+      - name: count
+        type: count
+        title: "Tổng số lượt lưu giá"
+        description: "Số lần hệ thống ghi nhận giá của sản phẩm"
+
+      - name: average_sale_price
+        type: avg
+        sql: sale_price
+        title: "Giá bán trung bình"
+        description: "Mức giá bán trung bình trên các sàn"
+        format: currency
+
+      - name: min_sale_price
+        type: min
+        sql: sale_price
+        title: "Giá bán rổ thấp nhất (Đáy)"
+
+      - name: average_unit_price
+        type: avg
+        sql: unit_price
+        title: "Giá Đơn vị Trung Bình"
+        description: "Mức giá trung bình trên 1 đơn vị sản phẩm (đã trừ khối lượng combo)"
+        format: currency
+        
+      - name: deals_count
+        type: count
+        title: "Số lượng Deal Hot"
+        description: "Số lượng bản ghi đạt mức giá rẻ nhất trong tháng"
+        filters:
+          - sql: "{CUBE.is_lowest_in_month} = true"
+
+    # === 3. Các chiều dữ liệu (Dimensions) ===
+    dimensions:
+      - name: fact_id
+        sql: fact_id
+        type: string
+        primary_key: true
+        shown: false # Ẩn cột này khỏi UI của User
+
+      - name: sale_price
+        sql: sale_price
+        type: number
+        title: "Giá bán thực tế"
+
+      - name: unit_price
+        sql: unit_price
+        type: number
+        title: "Giá theo đơn vị (Thực tế)"
+
+      - name: pack_quantity
+        sql: pack_quantity
+        type: number
+        title: "Hệ số đóng gói (Số lượng)"
+
+      - name: is_lowest_in_month
+        sql: is_lowest_in_month
+        type: boolean
+        title: "Là giá thấp nhất tháng?"
+
+      - name: scraped_at
+        sql: scraped_at
+        type: time
+        title: "Thời điểm lấy giá"

@@ -1,0 +1,40 @@
+cubes:
+  - name: dim_date
+    sql_table: dwh.dim_date
+    
+    joins:
+      - name: fact_price_snapshots
+        sql: "{CUBE}.date_key = {fact_price_snapshots}.date_key"
+        relationship: one_to_many
+
+    dimensions:
+      - name: date_key
+        sql: date_key
+        type: number
+        primary_key: true
+        shown: false
+
+      - name: date_day
+        sql: date_day
+        type: time
+        title: "Ngày tháng"
+
+      - name: year
+        sql: year
+        type: number
+        title: "Năm"
+
+      - name: month
+        sql: month
+        type: number
+        title: "Tháng"
+
+      - name: day_name
+        sql: day_name
+        type: string
+        title: "Thứ trong tuần"
+
+      - name: is_weekend
+        sql: is_weekend
+        type: boolean
+        title: "Là ngày cuối tuần?"

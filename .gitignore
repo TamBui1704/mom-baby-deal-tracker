@@ -3,3 +3,11 @@ __pycache__/
 *.pyc
 postgres_data/
 standalone_admin_password.txt
+venv/
+
+# dbt artifacts
+analytics/dbt/logs/
+analytics/dbt/target/
+analytics/dbt/dbt_packages/
+analytics/dbt/.user.yml
+analytics/dbt/.*.yml

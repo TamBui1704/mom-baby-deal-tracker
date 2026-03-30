@@ -1,0 +1,39 @@
+views:
+  - name: market_intelligence_unified
+    description: "Siêu View - Gộp tất cả báo cáo giá về 1 bảng duy nhất (Phù hợp cho Metabase/Power BI)"
+    cubes:
+      - join_path: fact_price_snapshots
+        includes:
+          # Measures (Các chỉ số tính toán)
+          - count
+          - average_sale_price
+          - average_unit_price
+          - min_sale_price
+          - deals_count
+          # Dimensions (Các chiều lọc)
+          - sale_price
+          - unit_price
+          - pack_quantity
+          - is_lowest_in_month
+          - scraped_at
+        
+      - join_path: fact_price_snapshots.dim_product
+        includes:
+          - product_name
+          - brand
+          - unit
+          - product_link
+        
+      - join_path: fact_price_snapshots.dim_date
+        includes:
+          - date_day
+          - year
+          - month
+          - day_name
+          - is_weekend
+        
+      - join_path: fact_price_snapshots.dim_time
+        includes:
+          - hour_24
+          - time_slot
+          - is_flash_sale_frame

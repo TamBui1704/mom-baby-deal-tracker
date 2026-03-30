@@ -1,0 +1,31 @@
+cubes:
+  - name: dim_time
+    sql_table: dwh.dim_time
+    
+    joins:
+      - name: fact_price_snapshots
+        sql: "{CUBE}.time_key = {fact_price_snapshots}.time_key"
+        relationship: one_to_many
+
+    dimensions:
+      - name: time_key
+        sql: time_key
+        type: number
+        primary_key: true
+        shown: false
+
+      - name: hour_24
+        sql: hour_24
+        type: number
+        title: "Giờ (0-23)"
+
+      - name: time_slot
+        sql: time_slot
+        type: string
+        title: "Buổi trong ngày"
+        description: "Sáng sớm, Sáng, Chiều, Tối"
+
+      - name: is_flash_sale_frame
+        sql: is_flash_sale_frame
+        type: boolean
+        title: "Khung giờ Flash Sale?"

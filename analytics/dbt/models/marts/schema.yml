@@ -1,0 +1,68 @@
+version: 2
+
+models:
+  - name: dim_product
+    columns:
+      - name: product_key
+        tests:
+          - unique
+          - not_null
+
+
+
+  - name: fact_price_snapshots
+    description: "Bảng Fact lưu trữ lịch sử giá của các sản phẩm theo thời gian."
+    columns:
+      - name: fact_id
+        tests:
+          - unique
+          - not_null
+      - name: product_key
+        roles: []
+        tests:
+          - relationships:
+              to: ref('dim_product')
+              field: product_key
+
+      - name: date_key
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_key
+      - name: time_key
+        tests:
+          - relationships:
+              to: ref('dim_time')
+              field: time_key
+
+  - name: rpt_daily_deals
+    description: "Bảng Semantic Layer (OBT) dành cho báo cáo. Kết hợp toàn bộ thông tin sản phẩm, sàn và giá."
+    columns:
+      - name: fact_id
+        description: "ID duy nhất của mỗi bản ghi giá."
+      - name: product_name
+        description: "Tên sản phẩm dễ hiểu."
+
+      - name: price_above_floor_pct
+        description: "Độ lệch % so với giá thấp nhất trong tháng. Càng thấp càng hời."
+      - name: date_key
+        tests:
+          - relationships:
+              to: ref('dim_date')
+              field: date_key
+
+  - name: dim_date
+    description: "Bảng kích thước Thời gian (Ngày, Tháng, Năm)"
+    columns:
+      - name: date_key
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_time
+    description: "Bảng kích thước Khung giờ trong ngày (Giờ, Phút)"
+    columns:
+      - name: time_key
+        tests:
+          - unique
+          - not_null

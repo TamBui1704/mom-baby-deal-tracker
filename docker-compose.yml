@@ -1,50 +1,143 @@
-version: '3.8'
 services:
-  # Data Warehouse
+  # Data Warehouse - Using Alpine version for better performance
   warehouse-db:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: warehouse_postgres
     environment:
-      POSTGRES_USER: dw_admin
-      POSTGRES_PASSWORD: password123
-      POSTGRES_DB: mom_baby_dw
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
-      - "5432:5432"
+      - "${DB_PORT}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      - ./db_init/init.sql:/docker-entrypoint-initdb.d/init.sql
 
-  # Message Broker
+  # Message Broker - Fixed version to avoid 'manifest unknown' error
   message-broker:
-    image: bitnami/kafka:latest
+    image: bitnamilegacy/kafka:3.5.1
     container_name: kafka_broker
     environment:
       - KAFKA_CFG_NODE_ID=1
       - KAFKA_CFG_PROCESS_ROLES=controller,broker
       - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
-      - KAFKA_KRAFT_CLUSTER_ID=abc-123-deal-tracker
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://message-broker:9092
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@localhost:9093
+      - KAFKA_KRAFT_CLUSTER_ID=4L6_S9EBTMmN6ZiST_88tA
     ports:
       - "9092:9092"
 
-  # Orchestrator
+  # Kafka Init - Automatically create topics on startup
+  kafka-init:
+    image: bitnamilegacy/kafka:3.5.1
+    container_name: kafka_init
+    command: >
+      bash -c "echo 'Waiting for Kafka...' &&
+               sleep 10 &&
+               kafka-topics.sh --create --if-not-exists --topic price_raw --bootstrap-server message-broker:9092 --partitions 1 --replication-factor 1 &&
+               echo 'Topic price_raw created successfully!'"
+    depends_on:
+      - message-broker
+
+  # Orchestrator - Airflow Standalone mode
   orchestrator:
-    image: apache/airflow:2.7.1
+    build:
+      context: .
+      dockerfile: deployments/docker/airflow/Dockerfile
     container_name: airflow_orchestrator
     environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://dw_admin:password123@warehouse-db/mom_baby_dw
+      - AIRFLOW__CORE__EXECUTOR=${AIRFLOW_EXECUTOR}
+      - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://${DB_USER}:${DB_PASSWORD}@warehouse-db/${DB_NAME}
+      - AIRFLOW__CORE__LOAD_EXAMPLES=False
+      - AIRFLOW__WEBSERVER__WEB_SERVER_HOST=0.0.0.0
+      - AIRFLOW__WEBSERVER__WEB_SERVER_PORT=8080
+      - _AIRFLOW_WWW_USER_USERNAME=${AIRFLOW_WWW_USER_USERNAME}
+      - _AIRFLOW_WWW_USER_PASSWORD=${AIRFLOW_WWW_USER_PASSWORD}
+      - AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT=120
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
+      - AIRFLOW_CONN_POSTGRES_DEFAULT=postgres://${DB_USER}:${DB_PASSWORD}@warehouse-db:5432/${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_NAME=${DB_NAME}
+      - DB_HOST=warehouse-db
+      - DB_PORT=${DB_PORT}
     ports:
       - "8080:8080"
-    command: standalone
+    command: >
+      bash -c "
+      airflow db upgrade &&
+      (airflow users create --username ${AIRFLOW_WWW_USER_USERNAME} --firstname Admin --lastname User --role Admin --email admin@example.com --password ${AIRFLOW_WWW_USER_PASSWORD} || 
+       (airflow users delete --username ${AIRFLOW_WWW_USER_USERNAME} && 
+        airflow users create --username ${AIRFLOW_WWW_USER_USERNAME} --firstname Admin --lastname User --role Admin --email admin@example.com --password ${AIRFLOW_WWW_USER_PASSWORD})) &&
+      exec airflow standalone"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    depends_on:
+      - warehouse-db
+    volumes:
+      - .:/app
+      - ./orchestration/dags:/opt/airflow/dags
+
+
+  # BI Tool - Fixed stable version
+  bi-visualization:
+    image: metabase/metabase:v0.46.6
+    container_name: metabase_analytics
+    environment:
+      - MB_DB_TYPE=postgres
+      - MB_DB_DBNAME=${METABASE_DB_NAME}
+      - MB_DB_PORT=5432
+      - MB_DB_USER=${DB_USER}
+      - MB_DB_PASS=${DB_PASSWORD}
+      - MB_DB_HOST=warehouse-db
+    ports:
+      - "3000:3000"
     depends_on:
       - warehouse-db
 
-  # BI Tool
-  bi-visualization:
-    image: metabase/metabase:latest
-    container_name: metabase_analytics
+  # Stream Processor - Always-on Consumer
+  stream-processor:
+    build: .
+    container_name: kafka_consumer_worker
+    restart: always
+    env_file: .env
+    environment:
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - message-broker
+      - warehouse-db
+    volumes:
+      - .:/app
+
+  # Semantic Layer - Cube.dev (Open-source SSAS equivalent)
+  cube-semantic-layer:
+    image: cubejs/cube:v0.34
+    container_name: cube_semantic_layer
     ports:
-      - "3000:3000"
+      - "4000:4000"  # Developer API / Playground
+      - "3100:3100"  # REST API
+      - "15432:15432" # SQL API (dành cho Power BI, Metabase)
+    environment:
+      - CUBEJS_DB_TYPE=postgres
+      - CUBEJS_DB_HOST=warehouse-db
+      - CUBEJS_DB_PORT=5432
+      - CUBEJS_DB_NAME=${DB_NAME}
+      - CUBEJS_DB_USER=${DB_USER}
+      - CUBEJS_DB_PASS=${DB_PASSWORD}
+      - CUBEJS_WEB_SOCKETS=true
+      - CUBEJS_DEV_MODE=true
+      - CUBEJS_API_SECRET=my-secret-key-for-portfolio
+      - CUBEJS_SQL_BI_TOOL=metabase
+      - CUBEJS_SQL_USER=admin
+      - CUBEJS_SQL_PASSWORD=tambui123
+      - CUBEJS_SQL_DATABASE=gold_layer
+    volumes:
+      - ./analytics/cube:/cube/conf
     depends_on:
       - warehouse-db
 

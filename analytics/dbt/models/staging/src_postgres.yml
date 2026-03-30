@@ -1,0 +1,19 @@
+version: 2
+
+sources:
+  - name: public
+    database: mom_baby_dw
+    schema: raw
+    description: "Dữ liệu thô từ quá trình cào giá (Price Scraper)"
+    tables:
+      - name: stg_price_events
+        description: "Bảng chứa lịch sử các sự kiện thay đổi giá"
+        columns:
+          - name: product_id
+            description: "ID duy nhất của sản phẩm"
+            tests:
+              - not_null
+          - name: sale_price
+            description: "Giá bán tại thời điểm quét"
+            tests:
+              - not_null

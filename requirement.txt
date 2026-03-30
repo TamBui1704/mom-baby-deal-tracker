@@ -1,0 +1,8 @@
+confluent-kafka
+requests
+beautifulsoup4
+pandas
+python-dotenv
+psycopg2-binary
+dbt-postgres
+
